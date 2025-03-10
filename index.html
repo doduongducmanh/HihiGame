@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Circle Shooter Game</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        background: #111;
+      }
+      #gameOver,
+      #smallShop,
+      #pauseMenu,
+      #startMenu,
+      #specialShop {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 20px;
+        display: none;
+        text-align: center;
+      }
+      #startMenu {
+        display: block;
+      }
+      #startMenu input {
+        margin: 10px;
+        padding: 5px;
+        font-size: 16px;
+      }
+      #startMenu button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #startMenu button#specialShopButton {
+        margin-top: 10px;
+      }
+      .shop-item {
+        padding: 10px;
+        margin: 5px;
+        border: 1px solid white;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      .shop-item:hover {
+        background: rgba(255, 0, 0, 0.3);
+      }
+      #scoreboard {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: yellow;
+        font-size: 32px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 5px;
+      }
+      #healthBar {
+        position: absolute;
+        color: white;
+        text-align: center;
+      }
+      #playerName {
+        position: absolute;
+        color: white;
+        font-size: 16px;
+        text-align: center;
+      }
+      #expBar {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 300px;
+        height: 20px;
+        border: 1px solid white;
+        background: gray;
+      }
+      #expFill {
+        height: 100%;
+        background: green;
+        width: 0%;
+      }
+      #minimap {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 200px;
+        height: 200px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid white;
+      }
+      #smallShop,
+      #specialShop {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        width: 400px;
+        border-radius: 10px;
+      }
+      #smallShop h2,
+      #specialShop h2 {
+        margin-bottom: 30px;
+        font-size: 28px;
+        border-bottom: 2px solid white;
+        padding-bottom: 10px;
+        width: 100%;
+      }
+      #smallShop .shop-items,
+      #specialShop .shop-items {
+        display: flex;
+        flex-direction: column;
+        width: 80%;
+      }
+      #smallShop .shop-item,
+      #specialShop .shop-item {
+        margin: 10px 0;
+        font-size: 18px;
+      }
+      #startMenu .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="scoreboard">Score: 0 | Gold: 0 | Level: 1</div>
+    <div id="playerName"></div>
+    <div id="healthBar"></div>
+    <div id="expBar"><div id="expFill"></div></div>
+    <canvas id="minimap"></canvas>
+    <div id="gameOver">
+      <h1>Game Over</h1>
+      <p id="finalScore"></p>
+      <button onclick="restartGame()">Play Again</button>
+    </div>
+    <div id="smallShop">
+      <h2>Small Shop</h2>
+      <p>Current Stats: Damage: <span id="currentDamage"></span>, Fire Rate: <span id="currentFireRate"></span>ms, Speed: <span id="currentSpeed"></span>, Bullet Range: <span id="currentBulletRange"></span></p>
+      <div class="shop-items">
+        <div class="shop-item" onclick="buyItem('damage')">
+          Damage (<span id="damageUpgrade"></span>)
+        </div>
+        <div class="shop-item" onclick="buyItem('fireRate')">
+          Fire Rate (<span id="fireRateUpgrade"></span>)
+        </div>
+        <div class="shop-item" onclick="buyItem('speed')">
+          Speed (<span id="speedUpgrade"></span>)
+        </div>
+        <div class="shop-item" onclick="buyItem('bulletRange')">
+          Bullet Range (<span id="bulletRangeUpgrade"></span>)
+        </div>
+      </div>
+      <button
+        style="position: absolute; top: 10px; right: 10px"
+        onclick="closeSmallShop()"
+      >
+        X
+      </button>
+    </div>
+    <div id="specialShop">
+      <h2>Special Shop</h2>
+      <div class="shop-items">
+        <div class="shop-item" onclick="buySpecialItem('bulletsPerShot')">
+          Increase Bullets Per Shot (Current: <span id="currentBulletsPerShot"></span> -> <span id="nextBulletsPerShot"></span>)
+        </div>
+        <div class="shop-item" onclick="buySpecialItem('multipleShot')">
+          Increase Multiple Shot (Current: <span id="currentMultipleShot"></span> -> <span id="nextMultipleShot"></span>)
+        </div>
+      </div>
+      <button
+        style="position: absolute; top: 10px; right: 10px"
+        onclick="closeSpecialShop()"
+      >
+        X
+      </button>
+    </div>
+    <div id="pauseMenu">
+      <h2>Paused</h2>
+      <button onclick="resumeGame()">Continue</button>
+      <button onclick="quitGame()">Quit</button>
+    </div>
+    <div id="startMenu">
+      <h2 id="welcomeMessage">Enter Your Name</h2>
+      <input type="text" id="playerNameInput" placeholder="Your Name" maxlength="15" />
+      <br />
+      <button id="startButton" onclick="startGame()">Start Game</button>
+      <button id="specialShopButton" onclick="openSpecialShop()">Special Shop</button>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const minimapCanvas = document.getElementById("minimap");
+      const minimapCtx = minimapCanvas.getContext("2d");
+
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      minimapCanvas.width = 200;
+      minimapCanvas.height = 200;
+
+      const WORLD_WIDTH = canvas.width * 10;
+      const WORLD_HEIGHT = canvas.height * 10;
+
+      let camera = { x: 0, y: 0 };
+      let player = {
+        x: WORLD_WIDTH / 2,
+        y: WORLD_HEIGHT / 2,
+        radius: 20,
+        hp: 10,
+        maxHP: 10,
+        speed: 5,
+        damage: 1,
+        fireRate: 500,
+        bulletRange: 500,
+        bulletsPerShot: 1,
+        multipleShot: 1,
+        lastShot: 0,
+        flash: 0,
+        level: 1,
+        exp: 0,
+        expToNext: 10,
+        name: "",
+        regen: 0,
+      };
+      let bullets = [];
+      let enemies = [];
+      let obstacles = [];
+      let trees = [];
+      let flowers = [];
+      let grasses = [];
+      let damageIndicators = []; // Mảng lưu trữ các thông báo sát thương
+      let score = 0;
+      let gold = 0;
+      let gameOver = false;
+      let paused = false;
+      let smallShopOpen = false;
+      let specialShopOpen = false;
+      let scores = [];
+      let enemySpawnRate = 2;
+      let enemyHealth = 2;
+      let shopCosts = { damage: 10, fireRate: 10, speed: 10, bulletRange: 10 };
+      let specialShopCosts = { maxHP: 50, regen: 30 };
+      let difficultyTimer = 0;
+      let gameStarted = false;
+      let persistentGold = localStorage.getItem("persistentGold") ? parseInt(localStorage.getItem("persistentGold")) : 0;
+      let lastFireTime = 0;
+      let updateInterval = null;
+
+      let keys = {};
+      let mouseDown = false;
+      document.addEventListener("keydown", (e) => {
+        if (gameStarted) {
+          keys[e.key.toLowerCase()] = true;
+        }
+      });
+      document.addEventListener("keyup", (e) => (keys[e.key.toLowerCase()] = false));
+      canvas.addEventListener("mousedown", (e) => {
+        if (gameStarted) {
+          mouseDown = true;
+          shootOnHold(e.clientX, e.clientY);
+        }
+      });
+      canvas.addEventListener("mouseup", () => (mouseDown = false));
+      canvas.addEventListener("mousemove", (e) => {
+        if (gameStarted && !paused && !smallShopOpen && !specialShopOpen && mouseDown) {
+          shootOnHold(e.clientX, e.clientY);
+        }
+      });
+
+      function startGame() {
+        const nameInput = document.getElementById("playerNameInput").value.trim();
+        const savedName = localStorage.getItem("playerName");
+
+        if (!savedName && nameInput === "") {
+          alert("Please enter a name!");
+          return;
+        }
+
+        if (gameOver) {
+          resetGameState();
+        }
+
+        player.name = savedName || nameInput;
+        if (!savedName) {
+          localStorage.setItem("playerName", player.name);
+        }
+
+        document.getElementById("startMenu").style.display = "none";
+        document.getElementById("welcomeMessage").textContent = `Welcome ${player.name}`;
+        document.getElementById("playerNameInput").classList.add("hidden");
+        gameStarted = true;
+        generateObstacles();
+        generateBackground();
+        for (let i = 0; i < 2; i++) spawnEnemy();
+        if (updateInterval) clearInterval(updateInterval);
+        updateInterval = setInterval(update, 1000 / 60);
+        draw();
+      }
+
+      function resetGameState() {
+        gameOver = false;
+        gameStarted = false;
+        paused = false;
+        smallShopOpen = false;
+        specialShopOpen = false;
+        bullets = [];
+        enemies = [];
+        obstacles = [];
+        trees = [];
+        flowers = [];
+        grasses = [];
+        damageIndicators = []; // Reset thông báo sát thương
+        score = 0;
+        gold = 0;
+        scores = [];
+        enemySpawnRate = 2;
+        enemyHealth = 2;
+        difficultyTimer = 0;
+        if (updateInterval) clearInterval(updateInterval);
+      }
+
+      function openSpecialShop() {
+        document.getElementById("startMenu").style.display = "none";
+        document.getElementById("specialShop").style.display = "flex";
+        specialShopOpen = true;
+        updateSpecialShopDisplay();
+      }
+
+      function closeSpecialShop() {
+        specialShopOpen = false;
+        document.getElementById("specialShop").style.display = "none";
+        document.getElementById("startMenu").style.display = "block";
+      }
+
+      function restartGame() {
+        resetGameState();
+        player = {
+          x: WORLD_WIDTH / 2,
+          y: WORLD_HEIGHT / 2,
+          radius: 20,
+          hp: 10,
+          maxHP: 10,
+          speed: 5,
+          damage: 1,
+          fireRate: 500,
+          bulletRange: 500,
+          bulletsPerShot: 1,
+          multipleShot: 1,
+          lastShot: 0,
+          flash: 0,
+          level: 1,
+          exp: 0,
+          expToNext: 10,
+          name: localStorage.getItem("playerName") || "",
+          regen: 0,
+        };
+        persistentGold += gold;
+        localStorage.setItem("persistentGold", persistentGold);
+        document.getElementById("gameOver").style.display = "none";
+        document.getElementById("startMenu").style.display = "block";
+      }
+
+      function generateObstacles() {
+        obstacles = [];
+        for (let i = 0; i < 40; i++) {
+          let size = Math.random() * 50 + 50;
+          let x = Math.random() * (WORLD_WIDTH - size);
+          let y = Math.random() * (WORLD_HEIGHT - size);
+          obstacles.push({ x, y, width: size, height: size });
+        }
+      }
+
+      function generateBackground() {
+        trees = [];
+        flowers = [];
+        grasses = [];
+        for (let i = 0; i < 30; i++) {
+          trees.push({
+            x: Math.random() * WORLD_WIDTH,
+            y: Math.random() * WORLD_HEIGHT,
+          });
+        }
+        for (let i = 0; i < 100; i++) {
+          flowers.push({
+            x: Math.random() * WORLD_WIDTH,
+            y: Math.random() * WORLD_HEIGHT,
+          });
+        }
+        for (let i = 0; i < 200; i++) {
+          grasses.push({
+            x: Math.random() * WORLD_WIDTH,
+            y: Math.random() * WORLD_HEIGHT,
+          });
+        }
+      }
+
+      function checkCollision(obj1, obj2) {
+        return (
+          obj1.x < obj2.x + obj2.width &&
+          obj1.x + (obj1.radius || 0) > obj2.x &&
+          obj1.y < obj2.y + obj2.height &&
+          obj1.y + (obj1.radius || 0) > obj2.y
+        );
+      }
+
+      function shoot(screenX, screenY) {
+        const now = Date.now();
+        if (now - lastFireTime < player.fireRate) return;
+        lastFireTime = now;
+
+        const worldX = screenX + camera.x;
+        const worldY = screenY + camera.y;
+        const baseAngle = Math.atan2(worldY - player.y, worldX - player.x);
+
+        const angleSpread = Math.PI / 12; // 15 độ
+        const angleStep = player.multipleShot > 1 ? angleSpread / (player.multipleShot - 1) : 0;
+
+        for (let i = 0; i < player.multipleShot; i++) {
+          const angleOffset = player.multipleShot > 1 ? -angleSpread / 2 + i * angleStep : 0;
+          const finalAngle = baseAngle + angleOffset;
+
+          for (let j = 0; j < player.bulletsPerShot; j++) {
+            const offsetX = Math.cos(finalAngle) * j * 30;
+            const offsetY = Math.sin(finalAngle) * j * 30;
+            bullets.push({
+              x: player.x + offsetX,
+              y: player.y + offsetY,
+              dx: Math.cos(finalAngle) * 10,
+              dy: Math.sin(finalAngle) * 10,
+              radius: 5,
+              distanceTravelled: 0,
+              startX: player.x + offsetX,
+              startY: player.y + offsetY,
+            });
+          }
+        }
+      }
+
+      function shootOnHold(screenX, screenY) {
+        const now = Date.now();
+        if (now - lastFireTime >= player.fireRate) {
+          shoot(screenX || (canvas.width / 2 + camera.x), screenY || (canvas.height / 2 + camera.y));
+        }
+      }
+
+      function spawnEnemy() {
+        let x, y, distance;
+        do {
+          x = Math.random() * WORLD_WIDTH;
+          y = Math.random() * WORLD_HEIGHT;
+          distance = Math.hypot(x - player.x, y - player.y);
+        } while (distance < 300);
+        enemies.push({ x, y, hp: enemyHealth, flash: 0 });
+      }
+
+      function drawBackground() {
+        ctx.fillStyle = "#4CAF50";
+        ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        for (let i = 0; i < WORLD_WIDTH; i += 50) {
+          for (let j = 0; j < WORLD_HEIGHT; j += 50) {
+            ctx.fillStyle = "#81C784";
+            ctx.fillRect(i, j, 5, 5);
+          }
+        }
+
+        trees.forEach(tree => {
+          ctx.fillStyle = "#5D4037";
+          ctx.fillRect(tree.x, tree.y, 10, 20);
+          ctx.fillStyle = "#8BC34A";
+          ctx.beginPath();
+          ctx.moveTo(tree.x - 5, tree.y);
+          ctx.lineTo(tree.x + 5, tree.y);
+          ctx.lineTo(tree.x, tree.y - 15);
+          ctx.fill();
+        });
+
+        flowers.forEach(flower => {
+          ctx.fillStyle = "#D32F2F";
+          ctx.beginPath();
+          ctx.arc(flower.x, flower.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        grasses.forEach(grass => {
+          ctx.fillStyle = "#8BC34A";
+          ctx.beginPath();
+          ctx.moveTo(grass.x, grass.y);
+          ctx.lineTo(grass.x + 5, grass.y + 10);
+          ctx.lineTo(grass.x - 5, grass.y + 10);
+          ctx.fill();
+        });
+      }
+
+      function update() {
+        if (!gameStarted || gameOver || paused || smallShopOpen || specialShopOpen) return;
+
+        if (player.regen > 0 && player.hp < player.maxHP) {
+          player.hp = Math.min(player.hp + 0.1, player.maxHP);
+        }
+
+        let newX = player.x;
+        let newY = player.y;
+        if (keys["w"]) newY -= player.speed;
+        if (keys["s"]) newY += player.speed;
+        if (keys["a"]) newX -= player.speed;
+        if (keys["d"]) newX += player.speed;
+
+        newX = Math.max(player.radius, Math.min(WORLD_WIDTH - player.radius, newX));
+        newY = Math.max(player.radius, Math.min(WORLD_HEIGHT - player.radius, newY));
+
+        let canMove = true;
+        for (let o of obstacles) {
+          if (checkCollision({ x: newX, y: newY, radius: player.radius }, o)) {
+            canMove = false;
+            break;
+          }
+        }
+        if (canMove) {
+          player.x = newX;
+          player.y = newY;
+        }
+
+        camera.x = player.x - canvas.width / 2;
+        camera.y = player.y - canvas.height / 2;
+        camera.x = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, camera.x));
+        camera.y = Math.max(0, Math.min(WORLD_HEIGHT - canvas.height, camera.y));
+
+        bullets.forEach((b, i) => {
+          b.x += b.dx;
+          b.y += b.dy;
+
+          b.distanceTravelled = Math.hypot(b.x - b.startX, b.y - b.startY);
+
+          if (b.distanceTravelled > player.bulletRange) {
+            bullets.splice(i, 1);
+            return;
+          }
+
+          if (b.x < 0 || b.x > WORLD_WIDTH || b.y < 0 || b.y > WORLD_HEIGHT) {
+            bullets.splice(i, 1);
+            return;
+          }
+
+          for (let o of obstacles) {
+            if (checkCollision(b, o)) {
+              bullets.splice(i, 1);
+              return;
+            }
+          }
+        });
+
+        // Cập nhật thông báo sát thương
+        damageIndicators.forEach((indicator, i) => {
+          indicator.time -= 1 / 60; // Giảm thời gian tồn tại
+          indicator.y -= 1; // Di chuyển lên trên
+          indicator.opacity -= 0.02; // Giảm độ mờ
+          if (indicator.time <= 0 || indicator.opacity <= 0) {
+            damageIndicators.splice(i, 1); // Xóa thông báo nếu hết thời gian
+          }
+        });
+
+        enemies.forEach((e, i) => {
+          const angle = Math.atan2(player.y - e.y, player.x - e.x);
+          let newEnemyX = e.x + Math.cos(angle) * 2;
+          let newEnemyY = e.y + Math.sin(angle) * 2;
+          let canMoveEnemy = true;
+          for (let o of obstacles) {
+            if (checkCollision({ x: newEnemyX, y: newEnemyY, radius: 20 }, o)) {
+              canMoveEnemy = false;
+              break;
+            }
+          }
+          if (canMoveEnemy) {
+            e.x = newEnemyX;
+            e.y = newEnemyY;
+          }
+          if (e.flash > 0) e.flash--;
+
+          if (Math.hypot(e.x - player.x, e.y - player.y) < player.radius + 20) {
+            player.hp--;
+            player.flash = 10;
+            enemies.splice(i, 1);
+            spawnEnemy();
+          }
+
+          bullets.forEach((b, j) => {
+            if (Math.hypot(b.x - e.x, b.y - e.y) < 20) {
+              e.hp -= player.damage;
+              e.flash = 10;
+
+              // Thêm thông báo sát thương
+              damageIndicators.push({
+                x: e.x,
+                y: e.y - 30, // Hiển thị phía trên kẻ địch
+                damage: player.damage,
+                time: 1, // Thời gian tồn tại (1 giây)
+                opacity: 1, // Độ mờ ban đầu
+              });
+
+              bullets.splice(j, 1);
+              if (e.hp <= 0) {
+                enemies.splice(i, 1);
+                score++;
+                gold++;
+                player.exp += 1;
+                if (player.exp >= player.expToNext) {
+                  player.level++;
+                  player.exp = 0;
+                  player.expToNext = Math.floor(player.expToNext * 1.25);
+                  smallShopOpen = true;
+                  document.getElementById("smallShop").style.display = "flex";
+                  updateSmallShopDisplay();
+                }
+                spawnEnemy();
+              }
+            }
+          });
+        });
+
+        difficultyTimer += 1 / 60;
+        if (difficultyTimer >= 20) {
+          difficultyTimer = 0;
+          enemySpawnRate += 3;
+          enemyHealth += 0.5;
+        }
+
+        if (enemies.length < enemySpawnRate) spawnEnemy();
+
+        if (player.hp <= 0) {
+          gameOver = true;
+          scores.push(score);
+          if (scores.length > 10) scores.shift();
+          document.getElementById("gameOver").style.display = "block";
+          document.getElementById(
+            "finalScore"
+          ).textContent = `Score: ${score}\nHigh Scores: ${scores.join(", ")}`;
+          persistentGold += gold;
+          localStorage.setItem("persistentGold", persistentGold);
+          gold = 0;
+        }
+
+        document.getElementById(
+          "scoreboard"
+        ).textContent = `Score: ${score} | Gold: ${persistentGold + gold} | Level: ${player.level}`;
+        document.getElementById("playerName").style.left = `${player.x - camera.x - 25}px`;
+        document.getElementById("playerName").style.top = `${player.y - camera.y - 55}px`;
+        document.getElementById("playerName").textContent = player.name;
+        document.getElementById("healthBar").style.left = `${player.x - camera.x - 25}px`;
+        document.getElementById("healthBar").style.top = `${player.y - camera.y - 40}px`;
+        document.getElementById(
+          "healthBar"
+        ).innerHTML = `<div style="width:50px;height:5px;border:1px solid black;background:red;"><div style="width:${(player.hp / player.maxHP) * 50}px;height:100%;background:green;"></div></div>`;
+        document.getElementById("expFill").style.width = `${(player.exp / player.expToNext) * 100}%`;
+      }
+
+      function draw() {
+        if (!gameStarted) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(-camera.x, -camera.y);
+
+        drawBackground();
+
+        if (player.flash > 0) {
+          ctx.fillStyle = "red";
+          player.flash--;
+        } else {
+          ctx.fillStyle = "cyan";
+        }
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        bullets.forEach((b) => {
+          ctx.fillStyle = "yellow";
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        enemies.forEach((e) => {
+          if (e.flash > 0) {
+            ctx.fillStyle = "red";
+            e.flash--;
+          } else {
+            ctx.fillStyle = "gray";
+          }
+          ctx.fillRect(e.x - 20, e.y - 20, 40, 40);
+        });
+
+        obstacles.forEach((o) => {
+          ctx.fillStyle = "brown";
+          ctx.fillRect(o.x, o.y, o.width, o.height);
+        });
+
+        // Vẽ thông báo sát thương
+        damageIndicators.forEach((indicator) => {
+          ctx.font = "16px Arial";
+          ctx.fillStyle = `rgba(255, 0, 0, ${indicator.opacity})`; // Màu đỏ với độ mờ
+          ctx.textAlign = "center";
+          ctx.fillText(indicator.damage, indicator.x, indicator.y);
+        });
+
+        ctx.restore();
+
+        minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+        minimapCtx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+        const scaleX = minimapCanvas.width / WORLD_WIDTH;
+        const scaleY = minimapCanvas.height / WORLD_HEIGHT;
+
+        minimapCtx.fillStyle = "cyan";
+        minimapCtx.beginPath();
+        minimapCtx.arc(
+          player.x * scaleX,
+          player.y * scaleY,
+          player.radius * scaleX * 15,
+          0,
+          Math.PI * 2
+        );
+        minimapCtx.fill();
+
+        enemies.forEach((e) => {
+          minimapCtx.fillStyle = "gray";
+          minimapCtx.fillRect(
+            e.x * scaleX - 2,
+            e.y * scaleY - 2,
+            4,
+            4
+          );
+        });
+
+        obstacles.forEach((o) => {
+          minimapCtx.fillStyle = "brown";
+          minimapCtx.fillRect(
+            o.x * scaleX,
+            o.y * scaleY,
+            o.width * scaleX * 2,
+            o.height * scaleY * 2
+          );
+        });
+
+        requestAnimationFrame(draw);
+      }
+
+      function buyItem(type) {
+        if (smallShopOpen) {
+          if (type === "damage") player.damage++;
+          else if (type === "fireRate") player.fireRate = Math.max(100, player.fireRate - 50);
+          else if (type === "speed") player.speed++;
+          else if (type === "bulletRange") player.bulletRange += 100;
+          updateSmallShopDisplay();
+          closeSmallShop();
+        } else if (gold >= shopCosts[type]) {
+          gold -= shopCosts[type];
+          shopCosts[type] = Math.floor(shopCosts[type] * 1.2);
+          if (type === "damage") player.damage++;
+          else if (type === "fireRate") player.fireRate = Math.max(100, player.fireRate - 50);
+          else if (type === "speed") player.speed++;
+          else if (type === "bulletRange") player.bulletRange += 100;
+          updateShopCosts();
+          closeSmallShop();
+        }
+      }
+
+      function buySpecialItem(type) {
+        if (type === "bulletsPerShot") {
+          player.bulletsPerShot++;
+        } else if (type === "multipleShot") {
+          player.multipleShot++;
+        }
+        updateSpecialShopDisplay();
+        closeSpecialShop();
+      }
+
+      function updateShopCosts() {
+        document.getElementById("damageCost").textContent = shopCosts.damage;
+        document.getElementById("fireRateCost").textContent = shopCosts.fireRate;
+        document.getElementById("speedCost").textContent = shopCosts.speed;
+        document.getElementById("bulletRangeCost").textContent = shopCosts.bulletRange;
+      }
+
+      function updateSmallShopDisplay() {
+        document.getElementById("currentDamage").textContent = player.damage;
+        document.getElementById("currentFireRate").textContent = player.fireRate;
+        document.getElementById("currentSpeed").textContent = player.speed;
+        document.getElementById("currentBulletRange").textContent = player.bulletRange;
+        document.getElementById("damageUpgrade").textContent = `${player.damage} -> ${player.damage + 1}`;
+        document.getElementById("fireRateUpgrade").textContent = `${player.fireRate}ms -> ${Math.max(100, player.fireRate - 50)}ms`;
+        document.getElementById("speedUpgrade").textContent = `${player.speed} -> ${player.speed + 1}`;
+        document.getElementById("bulletRangeUpgrade").textContent = `${player.bulletRange} -> ${player.bulletRange + 100}`;
+      }
+
+      function updateSpecialShopDisplay() {
+        document.getElementById("currentBulletsPerShot").textContent = player.bulletsPerShot;
+        document.getElementById("nextBulletsPerShot").textContent = player.bulletsPerShot + 1;
+        document.getElementById("currentMultipleShot").textContent = player.multipleShot;
+        document.getElementById("nextMultipleShot").textContent = player.multipleShot + 1;
+      }
+
+      function closeSmallShop() {
+        smallShopOpen = false;
+        document.getElementById("smallShop").style.display = "none";
+      }
+
+      function closeSpecialShop() {
+        specialShopOpen = false;
+        document.getElementById("specialShop").style.display = "none";
+        document.getElementById("startMenu").style.display = "block";
+      }
+
+      function quitGame() {
+        gameOver = true;
+        scores.push(score);
+        if (scores.length > 10) scores.shift();
+        document.getElementById("gameOver").style.display = "block";
+        document.getElementById(
+          "finalScore"
+        ).textContent = `Score: ${score}\nHigh Scores: ${scores.join(", ")}`;
+        document.getElementById("pauseMenu").style.display = "none";
+        persistentGold += gold;
+        localStorage.setItem("persistentGold", persistentGold);
+        gold = 0;
+        paused = false;
+        resetGameState();
+      }
+
+      function resumeGame() {
+        paused = false;
+        document.getElementById("pauseMenu").style.display = "none";
+      }
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && gameStarted) {
+          if (paused) resumeGame();
+          else {
+            paused = true;
+            document.getElementById("pauseMenu").style.display = "block";
+          }
+        }
+        if (e.key === " " && gameStarted && !paused && !smallShopOpen && !specialShopOpen) {
+          shootOnHold(canvas.width / 2 + camera.x, canvas.height / 2 + camera.y);
+        }
+      });
+
+      const savedName = localStorage.getItem("playerName");
+      if (savedName) {
+        player.name = savedName;
+        document.getElementById("welcomeMessage").textContent = `Welcome ${player.name}`;
+        document.getElementById("playerNameInput").classList.add("hidden");
+        document.getElementById("startMenu").style.display = "block";
+      }
+    </script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91d168b778babf69',t:'MTc0MTQyNzIyNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91d1b4844ea5bf7f',t:'MTc0MTQzMDMyOS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91d1e19b8d0eed86',t:'MTc0MTQzMjE3NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91d9c3db6b10bf64',t:'MTc0MTUxNDg0My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
